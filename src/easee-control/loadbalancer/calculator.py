@@ -2,16 +2,16 @@
 
 import numpy
 from math import trunc
+from .phase import ElectricalPhase
 
-SAFETY_MARGIN = 1
+SAFETY_MARGIN = 2
 
 
 class Calculator:
     """Target current calculator"""
 
-    def __init__(self, logger, rated_current: float = 0) -> None:
+    def __init__(self, rated_current: float = 0) -> None:
         self._rated_current = rated_current
-        self._logger = logger
 
     def _running_mean(self, samples, window_size) -> float:
         """Running mean calculator"""
@@ -32,7 +32,7 @@ class Calculator:
 
         return self._get_new_current(current_load)
 
-    def calculate_target_with_filter(self, phase_data) -> int:
+    def calculate_target_with_filter(self, phase_data: ElectricalPhase) -> int:
         """Provides the target current run through a mean filter"""
 
         running_mean = self._running_mean(

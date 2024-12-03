@@ -169,3 +169,5 @@ terraform.tfstate.backup
 *.auto.tfvars     # Sensitive variables (should never be committed)
 *.pkcs12         # Sensitive key files
 *.pem
+
+test.json

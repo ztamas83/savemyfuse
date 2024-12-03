@@ -1,101 +1,204 @@
-import base64
 from cloudevents.http import CloudEvent
 from google.cloud.firestore import AsyncClient as FsClient
+from google.cloud.logging import Client as LoggingClient
 import functions_framework
-from pyeasee import Easee, STATUS
 import os
 import asyncio
 from dotenv import load_dotenv
 from loadbalancer.phase import ElectricalPhase
 import json
-from functools import lru_cache
+import logging
+from datetime import datetime, timedelta
 
 load_dotenv()
 
 """Generic charge controller constants"""
-DATA_HASS_CONFIG = "generic_charger_hass_config"
-DOMAIN = "generic_charge_controller"
-
-DEFAULT_TARGET_CURRENT = 16
-
+DEFAULT_RATED_CURRENT = 16
 PHASE_TMP = "P%s"
 PHASE1 = "P1"
 PHASE2 = "P2"
 PHASE3 = "P3"
 
-CONF_PHASE1 = "phase1"
-CONF_PHASE2 = "phase2"
-CONF_PHASE3 = "phase3"
-CONF_ENTITYID_POWER_NOW = "charger_power_sensor"
+CONF_PHASES = "CONF_PHASES"
 CONF_RATED_CURRENT = "mains_fuse_current"
 CONF_CHRG_ID = "charger_device_id"
 
 ATTR_LIMIT_Px = "Current limit %s"
 
-client: Easee = None
+eventLoop = asyncio.new_event_loop()
+asyncio.set_event_loop(eventLoop)
+
+staticDbClient = FsClient()
+controllers = {}
 
 
-# @lru_cache(maxsize=5, typed=True)
-async def fetch_phase_data(
-    dbClient: FsClient, location_id: str
-) -> dict[str, ElectricalPhase]:
-    db = FsClient()
-    data_ref = db.collection("measurements").document(location_id)
-    snapshot = await data_ref.get()
-    if snapshot.exists:
-        phases = {}
-        for phase_id in [PHASE1, PHASE2, PHASE3]:
-            try:
-                phase_data = snapshot.get(phase_id)
-                if phase_data is None:
-                    continue
+logger: logging.Logger = logging.getLogger("ChargeController")
 
-                phases[phase_id] = ElectricalPhase(
-                    phase_id,
-                    phase_data["mapped_phase"],
-                    phase_data["target_current"],
-                    phase_data["samples"],
+logging.basicConfig(level=os.getenv("LOG_LEVEL", "INFO"))
+
+# Stream handler to log messages in the console.
+stream_handler = logging.StreamHandler()
+stream_handler.setLevel(logging.DEBUG)
+
+# GCP Logging handler
+loggingClient = LoggingClient()
+loggingClient.setup_logging(log_level=logging.getLevelName(logger.level))
+
+# Add handlers
+# logger.addHandler(stream_handler)
+
+
+class ChargeController:
+    def __init__(
+        self,
+        dbClient: FsClient,
+        location_id: str,
+        rated_current: int = DEFAULT_RATED_CURRENT,
+    ):
+        self.dbClient = dbClient
+        self._location_id = location_id
+        self._rated_current = rated_current
+        self._phases: dict[str, ElectricalPhase] = {}
+        self._is_charging = False
+        self._current_limits: dict[str, int] = {"l1": None, "l2": None, "l3": None}
+        self._limit_last_updated: datetime = datetime.fromtimestamp(0)
+
+    @property
+    def is_charging(self) -> bool:
+        return self._is_charging
+
+    def get_current_limits(self) -> list[int]:
+        return list(self._current_limits.values())
+
+    async def fetch_phase_data(self) -> dict[str, ElectricalPhase]:
+        if self._phases:
+            logger.debug("Cache hit for phase data")
+            return self._phases
+
+        phases: dict[str, ElectricalPhase] = {}
+
+        phase_conf = (
+            os.environ.get(CONF_PHASES).split(",")
+            if os.environ.get(CONF_PHASES)
+            else ["l1"]
+        )
+
+        data_ref = self.dbClient.collection("measurements").document(self._location_id)
+        snapshot = await data_ref.get()
+        if snapshot.exists:
+            for i in range(len(phase_conf)):
+                phase_id = PHASE_TMP % (i + 1)
+                try:
+                    phase_data = snapshot.get(phase_id)
+                    if phase_data is None:
+                        raise KeyError
+
+                    else:
+                        phases[phase_id] = ElectricalPhase(
+                            phase_id,
+                            phase_data["mapped_phase"].lower(),
+                            phase_data["target_current"],
+                            phase_data["samples"],
+                        )
+                except KeyError:
+                    # If the data is not in the DB but the configuration adds it we add it as new
+                    phases[phase_id] = ElectricalPhase(
+                        phase_id,
+                        phase_conf[i],
+                        self._rated_current,
+                    )
+        else:
+            logger.info(f"Phase configuration: {phase_conf}")
+            for index, mapped_phase in enumerate(phase_conf):
+                phases[PHASE_TMP % (index + 1)] = ElectricalPhase(
+                    PHASE_TMP % 1,
+                    mapped_phase,
+                    self._rated_current,
                 )
-            except KeyError:
-                pass
-        return phases
-    else:
-        phases = {
-            PHASE1: ElectricalPhase(
-                PHASE1, os.environ.get(CONF_PHASE1, "l1"), DEFAULT_TARGET_CURRENT
+
+            await self.save_phase_data()
+
+        self._phases = phases
+        return self._phases
+
+    async def update_phase_data(self, event_data) -> None:
+        from loadbalancer.calculator import Calculator
+
+        calculator = Calculator(self._rated_current)
+        charging_on_phases = 0
+        for i in range(1, len(self._phases) + 1):
+            src_phase = self._phases[PHASE_TMP % i]
+            mapped_phase = src_phase.mapped_phase
+            charger_current = event_data["attributes"][
+                f"charger_{mapped_phase.lower()}"
+            ]
+
+            if charger_current > 0:
+                charging_on_phases += 1
+
+            available_current = (
+                event_data["attributes"][f"total_l{i}"] - charger_current
             )
-        }
-        if os.environ.get("PHASE2"):
-            phases[PHASE2] = ElectricalPhase(
-                PHASE2, os.environ.get(CONF_PHASE2), DEFAULT_TARGET_CURRENT
-            )
-        if os.environ.get("PHASE3"):
-            phases[PHASE3] = ElectricalPhase(
-                PHASE3, os.environ.get(CONF_PHASE3), DEFAULT_TARGET_CURRENT
+            # print(f"Available current on phase {phase}: {available_current}")
+
+            self._phases[PHASE_TMP % i].add_sample(available_current)
+
+            self._current_limits[mapped_phase.lower()] = (
+                calculator.calculate_target_with_filter(src_phase)
             )
 
-        await save_phase_data(dbClient, location_id, phases)
-        return phases
+        logger.debug(
+            f"Target calculated {self._current_limits}",
+            extra={"json_fields": self._current_limits},
+        )
+
+        self._is_charging = charging_on_phases > 0
+
+        await self.save_phase_data()
+
+    async def save_phase_data(self) -> None:
+        data_ref = self.dbClient.collection("measurements").document(self._location_id)
+
+        await data_ref.set(
+            {phase_id: vars(self._phases[phase_id]) for phase_id in self._phases.keys()}
+        )
+
+    async def update_charger(self) -> None:
+        # TODO: add update frequency configuration
+        logger.debug(
+            f"Last update: {self._limit_last_updated.isoformat(timespec='seconds')}"
+        )
+        if self._limit_last_updated > datetime.now() - timedelta(seconds=45):
+            logger.info("Charger updated less than 45 seconds ago, skipping")
+            return
+
+        from loadbalancer.easee import EaseeCharger, get_client
+
+        # only prepared to handle one charger now
+        charger_targets = self.get_current_limits()
+
+        logger.debug(f"Charger targets {charger_targets}")
+
+        try:
+            easee: EaseeCharger = get_client(
+                "brotorpsgatan_31",
+                os.environ.get("EASEECLIENTID"),
+                os.environ.get("EASEECLIENTSECRET"),
+            )
+            await easee.init_data()
+
+            await easee.charger.set_dynamic_charger_circuit_current(
+                *charger_targets, timeToLive=2
+            )
+
+            self._limit_last_updated = datetime.now()
+        except Exception as e:
+            logger.error(e)
+            logger.error("Failed to update charger", extra={"exception": e})
 
 
-async def save_phase_data(
-    dbClient: FsClient, location_id: str, phases: dict[str, ElectricalPhase]
-) -> None:
-    data_ref = dbClient.collection("measurements").document(location_id)
-    await data_ref.set({phase_id: vars(phases[phase_id]) for phase_id in phases.keys()})
-
-
-async def subscribe(cloud_event: CloudEvent) -> None:
+async def handle_event(cloud_event: CloudEvent) -> None:
     # Print out the data from Pub/Sub, to prove that it worked
-    # print(cloud_event)
-
-    event_data = json.loads(
-        base64.b64decode(cloud_event.data["message"]["data"]).decode("utf-8")
-    )
-
-    # print(event_data)
-
-    # check which phase the data is from
 
     EASEEUSER = os.environ.get("EASEECLIENTID")
     EASEESECRET = os.environ.get("EASEECLIENTSECRET")
@@ -103,23 +206,44 @@ async def subscribe(cloud_event: CloudEvent) -> None:
     if not EASEEUSER or not EASEESECRET:
         raise ValueError("EASEECLIENTID and EASEECLIENTSECRET must be set")
 
-    dbClient = FsClient()
-    current_data = await fetch_phase_data(dbClient, "brotorpsgatan_31")
+    logger.debug("Incoming event", extra={"event": cloud_event})
+    import base64
 
-    # print(current_data)
+    event_data = json.loads(
+        base64.b64decode(cloud_event.data["message"]["data"]).decode("utf-8")
+    )
 
-    for phase in range(1, 4):  # 1, 2, 3
-        available_current = (
-            event_data["attributes"][f"total_l{phase}"]
-            - event_data["attributes"][f"charger_l{phase}"]
-        )
-        # print(f"Available current on phase {phase}: {available_current}")
-        if current_data.get(PHASE_TMP % phase) is not None:
-            current_data[PHASE_TMP % phase].add_sample(available_current)
+    controller = controllers.get("brotorpsgatan_31")
+    if controller is None:
+        controller = ChargeController(staticDbClient, "brotorpsgatan_31", 16)
+        controllers["brotorpsgatan_31"] = controller
 
-    await save_phase_data(dbClient, "brotorpsgatan_31", current_data)
+    current_data = await controller.fetch_phase_data()
+
+    try:
+        print(current_data["P1"])
+        print(current_data["P2"])
+        print(current_data["P3"])
+    except:
+        pass
+    logger.debug(
+        "Phase data fetched",
+        extra={"json_fields": current_data.values()},
+    )
+
+    await controller.update_phase_data(event_data)
+
+    logger.info("Data updated")
+
+    if not (controller.is_charging or os.environ.get("FORCED_UPDATE")):
+        logger.info("Currently not charging, no need to update charger")
+        return
+
+    logger.info("Charging or forced update, updating charger")
+
+    await controller.update_charger()
 
 
 @functions_framework.cloud_event
 def main(cloud_event: CloudEvent) -> None:
-    asyncio.run(subscribe(cloud_event))
+    eventLoop.run_until_complete(handle_event(cloud_event))

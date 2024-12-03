@@ -1,6 +1,7 @@
 import collections
 from typing import List
 from google.cloud import logging
+import json
 
 
 class ElectricalPhase:
@@ -20,6 +21,12 @@ class ElectricalPhase:
             samples, 60
         )  # 60 x 5 seconds => 5 minutes of samples
 
+    def __repr__(self) -> str:
+        return f"{self.__class__} (-> {self._mapped_phase}), target: {self._target_current}, samples: {self._samples}"
+
+    def __str__(self) -> str:
+        return json.dumps(self.__dict__)
+
     @property
     def __dict__(self):
         return {
@@ -35,7 +42,7 @@ class ElectricalPhase:
         return self._phase_id
 
     @property
-    def get_mapped_phase(self):
+    def mapped_phase(self):
         """Mapped phase"""
         return self._mapped_phase
 

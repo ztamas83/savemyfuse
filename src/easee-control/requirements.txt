@@ -6,3 +6,6 @@ protobuf==5.28.3
 google-cloud-logging
 google-cloud-firestore
 numpy
+structlog
+voluptuous
+aiocache

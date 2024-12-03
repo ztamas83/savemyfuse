@@ -76,7 +76,7 @@ data "archive_file" "easee-source-archive" {
   type        = "zip"
   output_path = "/tmp/function-source.zip"
   source_dir  = "../src/easee-control/"
-  excludes = [ ".venv", ".env" ]
+  excludes = [ ".venv", ".env", ".vscode", "test.json", "__pycache__" ]
 }
 resource "google_storage_bucket_object" "object" {
   name   = "easee-control-${data.archive_file.easee-source-archive.output_sha256}.zip"
@@ -89,6 +89,10 @@ resource "google_firestore_database" "database" {
   name        = "(default)"
   location_id = local.region
   type        = "FIRESTORE_NATIVE"
+}
+
+resource "google_pubsub_topic" "measurements_topic" {
+  name = "measurements"
 }
 
 resource "google_cloudfunctions2_function" "easee-control-func" {
@@ -118,6 +122,8 @@ resource "google_cloudfunctions2_function" "easee-control-func" {
 
     environment_variables = {
       EASEECLIENTID = var.easee_user
+      LOG_LEVEL = var.LOG_LEVEL
+      CONF_PHASES = join(",", var.EASEE_PHASES)
     }
 
     secret_environment_variables {
@@ -130,6 +136,7 @@ resource "google_cloudfunctions2_function" "easee-control-func" {
     service_account_email = google_service_account.easee-controller.email
   }
 
+
   event_trigger {
     trigger_region = "europe-north1"
     event_type = "google.cloud.pubsub.topic.v1.messagePublished"
@@ -140,9 +147,47 @@ resource "google_cloudfunctions2_function" "easee-control-func" {
 
 }
 
-resource "google_pubsub_topic" "measurements_topic" {
-  name = "measurements"
+resource "google_monitoring_notification_channel" "email" {
+ display_name = "My own email"
+   type = "email"
+   labels = {
+     email_address = "ztamas@gmail.com"
+   }
+ }
+resource "google_monitoring_alert_policy" "alert_policy" {
+  display_name = "Memory Utilization > 90%"
+  documentation {
+    content = "The $${metric.display_name} of the $${resource.type} $${resource.label.instance_id} in $${resource.project} has exceeded 90% for over 5 minutes."
+  }
+  combiner     = "OR"
+  conditions {
+    display_name = "Condition 1"
+    condition_threshold {
+        comparison = "COMPARISON_GT"
+        duration = "300s"
+        filter = "resource.type = \"cloud_run_revision\" AND metric.type = \"run.googleapis.com/container/memory/utilization\""
+        threshold_value = "0.9"
+        trigger {
+          count = "1"
+        }
+    }
+  }
+
+
+  alert_strategy {
+    notification_channel_strategy {
+        renotify_interval = "1800s"
+        notification_channel_names = [google_monitoring_notification_channel.email.name]
+    }
+  }
+
+  notification_channels = [google_monitoring_notification_channel.email.name]
+
+  user_labels = {
+    severity = "warning"
+  }
 }
+
 
 # resource "google_cloud_run_service_iam_member" "member" {
 #   location = google_cloudfunctions2_function.easee-control-func.location
