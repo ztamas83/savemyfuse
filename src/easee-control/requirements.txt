@@ -1,0 +1,11 @@
+functions-framework==3.8.2
+pyeasee==0.8.9
+google_cloud_secret_manager==2.21.1
+python-dotenv
+protobuf==5.28.3
+google-cloud-logging
+google-cloud-firestore
+numpy
+structlog
+voluptuous
+aiocache
