@@ -1,0 +1,16 @@
+{
+  "configurations": [
+    {
+      "name": "Deploy Cloud Function",
+      "type": "cloudcode.cloudfunctions",
+      "request": "launch",
+      "functionName": "function-easee-control",
+      "gen": "GEN_2",
+      "entryPoint": "subscribe",
+      "revision": "",
+      "testInput": "",
+      "region": "europe-north1",
+      "runtime": "python312"
+    }
+  ]
+}

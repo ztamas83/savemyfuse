@@ -1,0 +1,49 @@
+blueprint:
+  name: Motion Light Tutorial
+  description: Turn a light on based on detected motion
+  domain: template
+  author: ztamas83
+  min_version: 2024.6.0
+  input:
+    sensor_current_p1:
+      name: Sensor Current P1
+      description: Sensor Current P1
+      selector:
+        entity:
+          filter:
+            - integration: tibber
+            - integration: zaptec
+
+    sensor_current_p2:
+      name: Sensor Current P2
+      description: Sensor Current P2
+      selector:
+        entity:
+          filter:
+            - integration: tibber
+            - integration: zaptec
+    sensor_current_p3:
+      name: Sensor Current P2
+      description: Sensor Current P2
+      selector:
+        entity:
+          filter:
+            - integration: tibber
+            - integration: zaptec
+variables:
+  current_p1: !input sensor_current_p1
+  current_p2: !input sensor_current_p2
+  current_p3: !input sensor_current_p3
+sensor:
+  - name: Phase currents
+      icon: mdi:meter-electric-outline
+      state: >-
+        {{ as_local(now()) }}
+      attributes:
+        l1: >
+          {{ states(current_p1) }}
+        l2: >
+          {{ states(current_p2) }}
+        l3: >
+          {{ states(current_p3) }}
+      #availability: "{{ states(reference_entity) not in ('unknown', 'unavailable') }}"

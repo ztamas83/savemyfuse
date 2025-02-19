@@ -158,3 +158,19 @@ cython_debug/
 #  and can be added to the global gitignore or merged into this file.  For a more nuclear
 #  option (not recommended) you can uncomment the following to ignore the entire idea folder.
 #.idea/
+
+# Terraform-specific files
+.terraform/
+.terraform.lock.hcl
+terraform.tfstate
+terraform.tfstate.backup
+*.tfplan
+*.tfvars.example  # Example variable files
+*.auto.tfvars     # Sensitive variables (should never be committed)
+*.pkcs12         # Sensitive key files
+*.pem
+
+test.json
+
+*.tfvars
+*.backend
