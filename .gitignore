@@ -171,3 +171,5 @@ terraform.tfstate.backup
 *.pem
 
 test.json
+
+*.tfvars
