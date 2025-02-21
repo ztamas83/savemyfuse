@@ -2,21 +2,20 @@ terraform {
   required_providers {
     google = {
       source  = "hashicorp/google"
-      version = ">= 6.12.0"
+      version = ">= 6.21.0"
     }
+  }
+
+  backend "gcs" {
+    
   }
 }
 
-locals {
-  project = "savemyfuse"
-  region  = "europe-north1"
-}
-
 provider "google" {
-  project     = local.project
-  region      = local.region
+  region      = var.region
+  project   = var.project_id
 }
-
+data "google_project" "project" { }
 resource "random_id" "default" {
   byte_length = 8
 }
@@ -29,14 +28,14 @@ resource "google_service_account" "eventarc" {
 
 # Grant permission to receive Eventarc events
 resource "google_project_iam_member" "eventreceiver" {
-  project = local.project
+  project = data.google_project.project.name
   role    = "roles/eventarc.eventReceiver"
   member  = "serviceAccount:${google_service_account.eventarc.email}"
 }
 
 # Grant permission to invoke Cloud Run services
 resource "google_project_iam_member" "runinvoker" {
-  project = local.project
+  project = data.google_project.project.name
   role    = "roles/run.invoker"
   member  = "serviceAccount:${google_service_account.eventarc.email}"
 }
@@ -61,7 +60,7 @@ variable "controller_roles" {
 
 resource "google_project_iam_member" "controller-role" {
   for_each = toset(var.controller_roles)
-  project = local.project
+  project = data.google_project.project.name
   role    = each.value
   member  = "serviceAccount:${google_service_account.easee-controller.email}"
 }
@@ -85,9 +84,9 @@ resource "google_storage_bucket_object" "object" {
 }
 
 resource "google_firestore_database" "database" {
-  project     = local.project
+  project     = data.google_project.project.name
   name        = "(default)"
-  location_id = local.region
+  location_id = var.region
   type        = "FIRESTORE_NATIVE"
 }
 
@@ -114,11 +113,11 @@ resource "google_cloudfunctions2_function" "easee-control-func" {
   service_config {
     max_instance_count = 1
     min_instance_count = 0
-    available_memory   = "256M"
+    available_memory   = "256Mi"
     timeout_seconds    = 30
-    #max_instance_request_concurrency = 50
 
     ingress_settings = "ALLOW_INTERNAL_ONLY"
+    
 
     environment_variables = {
       EASEECLIENTID = var.easee_user
@@ -128,8 +127,15 @@ resource "google_cloudfunctions2_function" "easee-control-func" {
 
     secret_environment_variables {
       key        = "EASEECLIENTSECRET"
-      project_id = local.project
+      project_id = data.google_project.project.name
       secret     = var.easee_secret_id
+      version    = "latest"
+    }
+
+    secret_environment_variables {
+      key        = "EASEE_SITE"
+      project_id = data.google_project.project.name
+      secret     = var.easee_site_secret_id
       version    = "latest"
     }
 
@@ -148,52 +154,66 @@ resource "google_cloudfunctions2_function" "easee-control-func" {
 }
 
 resource "google_monitoring_notification_channel" "email" {
- display_name = "My own email"
+ display_name = "Owner e-mail"
    type = "email"
    labels = {
-     email_address = "ztamas@gmail.com"
+     email_address = var.admin_email
    }
  }
-resource "google_monitoring_alert_policy" "alert_policy" {
-  display_name = "Memory Utilization > 90%"
-  documentation {
-    content = "The $${metric.display_name} of the $${resource.type} $${resource.label.instance_id} in $${resource.project} has exceeded 90% for over 5 minutes."
-  }
-  combiner     = "OR"
-  conditions {
-    display_name = "Condition 1"
-    condition_threshold {
-        comparison = "COMPARISON_GT"
-        duration = "300s"
-        filter = "resource.type = \"cloud_run_revision\" AND metric.type = \"run.googleapis.com/container/memory/utilization\""
-        threshold_value = "0.9"
-        trigger {
-          count = "1"
-        }
-    }
-  }
 
 
-  alert_strategy {
-    notification_channel_strategy {
-        renotify_interval = "1800s"
-        notification_channel_names = [google_monitoring_notification_channel.email.name]
-    }
-  }
-
-  notification_channels = [google_monitoring_notification_channel.email.name]
-
-  user_labels = {
-    severity = "warning"
-  }
+resource "google_monitoring_notification_channel" "chat" {
+   count = var.chat_notification_channel != null ? 1 : 0
+   display_name = "Google Chat notifications"
+   type = "google_chat"
+   labels = {
+     space = var.chat_notification_channel
+   }
 }
 
+# resource "google_monitoring_alert_policy" "alert_policy" {
+#   display_name = "Memory Utilization > 90%"
+#   documentation {
+#     content = "The $${metric.display_name} of the $${resource.type} $${resource.label.instance_id} in $${resource.project} has exceeded 90% for over 5 minutes."
+#   }
+#   combiner     = "OR"
+#   conditions {
+#     display_name = "Memory Utilization condition"
+#     condition_threshold {
+#         comparison = "COMPARISON_GT"
+#         duration = "180s"
+#         filter = "resource.type = \"cloud_run_revision\" AND metric.type = \"run.googleapis.com/container/memory/utilizations\""
+#         threshold_value = "0.8"
+#         trigger {
+#           percent = 50
+#         }
+#     }
+#   }
 
-# resource "google_cloud_run_service_iam_member" "member" {
-#   location = google_cloudfunctions2_function.easee-control-func.location
-#   service  = google_cloudfunctions2_function.easee-control-func.name
-#   role     = "roles/run.invoker"
-#   member   = "serviceAccount:${google_service_account.easee-controller-invoker.email}"
+#   conditions {
+#     display_name = "Error Count condition"
+#     condition_threshold {
+#       comparison = "COMPARISON_GT"
+#       duration = "180s"
+#       filter = "severity=ERROR AND resource.labels.service_name=\"${google_cloudfunctions2_function.easee-control-func.name}\""
+#     }
+#   }
+
+
+#   alert_strategy {
+#     notification_channel_strategy {
+#         renotify_interval = "21600s"
+#         notification_channel_names = [
+#           google_monitoring_notification_channel.email.name,
+#           google_monitoring_notification_channel.chat[0].name]
+#     }
+#   }
+
+#   notification_channels = [google_monitoring_notification_channel.email.name, google_monitoring_notification_channel.chat[0].name]
+
+#   user_labels = {
+#     severity = "warning"
+#   }
 # }
 
 output "function_uri" {

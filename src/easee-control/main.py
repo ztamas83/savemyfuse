@@ -124,6 +124,8 @@ class ChargeController:
     async def update_phase_data(self, event_data) -> None:
         from loadbalancer.calculator import Calculator
 
+        print("Event data", event_data)
+
         calculator = Calculator(self._rated_current)
         charging_on_phases = 0
         for i in range(1, len(self._phases) + 1):
@@ -136,9 +138,17 @@ class ChargeController:
             if charger_current > 0:
                 charging_on_phases += 1
 
-            available_current = (
-                event_data["attributes"][f"total_l{i}"] - charger_current
-            )
+            phase_current = event_data["attributes"][f"total_l{i}"]
+            # if the HomeAssistant Tibber integration fails for some reason the data will not be available
+            if not isinstance(phase_current, (int, float)):
+                logger.error(
+                    f"Invalid phase current value for phase {i}, using hard limit 6A"
+                )
+                self._current_limits[mapped_phase.lower()] = 6
+                # send_notification("Invalid phase currents received.", data=event_data)
+                continue
+
+            available_current = phase_current - charger_current
             # print(f"Available current on phase {phase}: {available_current}")
 
             self._phases[PHASE_TMP % i].add_sample(available_current)
@@ -181,7 +191,7 @@ class ChargeController:
 
         try:
             easee: EaseeCharger = get_client(
-                "brotorpsgatan_31",
+                os.environ.get("EASEE_SITE"),
                 os.environ.get("EASEECLIENTID"),
                 os.environ.get("EASEECLIENTSECRET"),
             )
@@ -197,14 +207,19 @@ class ChargeController:
             logger.error("Failed to update charger", extra={"exception": e})
 
 
+def check_env_vars():
+    if not os.environ.get("EASEECLIENTID") or not os.environ.get("EASEECLIENTSECRET"):
+        raise ValueError("EASEECLIENTID and EASEECLIENTSECRET must be set")
+    if not os.environ.get("EASEE_SITE"):
+        raise ValueError("EASEE_SITE must be set")
+
+
 async def handle_event(cloud_event: CloudEvent) -> None:
     # Print out the data from Pub/Sub, to prove that it worked
 
-    EASEEUSER = os.environ.get("EASEECLIENTID")
-    EASEESECRET = os.environ.get("EASEECLIENTSECRET")
+    check_env_vars()
 
-    if not EASEEUSER or not EASEESECRET:
-        raise ValueError("EASEECLIENTID and EASEECLIENTSECRET must be set")
+    site_id = os.environ.get("EASEE_SITE")
 
     logger.debug("Incoming event", extra={"event": cloud_event})
     import base64
@@ -213,10 +228,10 @@ async def handle_event(cloud_event: CloudEvent) -> None:
         base64.b64decode(cloud_event.data["message"]["data"]).decode("utf-8")
     )
 
-    controller = controllers.get("brotorpsgatan_31")
+    controller = controllers.get(site_id)
     if controller is None:
-        controller = ChargeController(staticDbClient, "brotorpsgatan_31", 16)
-        controllers["brotorpsgatan_31"] = controller
+        controller = ChargeController(staticDbClient, site_id, 16)
+        controllers[site_id] = controller
 
     current_data = await controller.fetch_phase_data()
 
@@ -224,8 +239,10 @@ async def handle_event(cloud_event: CloudEvent) -> None:
         print(current_data["P1"])
         print(current_data["P2"])
         print(current_data["P3"])
-    except:
+    except Exception as e:
+        logger.warning("Loging error", e)
         pass
+
     logger.debug(
         "Phase data fetched",
         extra={"json_fields": current_data.values()},
