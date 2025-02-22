@@ -141,7 +141,7 @@ class ChargeController:
             phase_current = event_data["attributes"][f"total_l{i}"]
             # if the HomeAssistant Tibber integration fails for some reason the data will not be available
             if not isinstance(phase_current, (int, float)):
-                logger.error(
+                logger.warning(
                     f"Invalid phase current value for phase {i}, using hard limit 6A"
                 )
                 self._current_limits[mapped_phase.lower()] = 6
