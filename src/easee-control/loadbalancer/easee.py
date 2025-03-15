@@ -1,12 +1,14 @@
 from pyeasee import Easee, Site, Charger, Circuit
 from aiocache import cached, Cache
-from functools import lru_cache
 import logging
+from aiohttp import ClientSession
 
 
 class EaseeCharger(Easee):
-    def __init__(self, user: str, password: str, location_id):
-        super().__init__(user, password)
+    def __init__(
+        self, user: str, password: str, location_id: str, session: ClientSession = None
+    ):
+        super().__init__(user, password, session)
         self._location_id = location_id
         self._charger: Charger = None
 
@@ -29,6 +31,7 @@ class EaseeCharger(Easee):
         return await self.get_sites()
 
 
-@lru_cache()
-def get_client(location_id: str, user: str, password: str):
-    return EaseeCharger(user, password, location_id)
+def get_client(
+    location_id: str, user: str, password: str, session: ClientSession = None
+):
+    return EaseeCharger(user, password, location_id, session)

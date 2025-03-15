@@ -183,6 +183,7 @@ class ChargeController:
             return
 
         from loadbalancer.easee import EaseeCharger, get_client
+        from aiohttp import ClientSession
 
         # only prepared to handle one charger now
         charger_targets = self.get_current_limits()
@@ -190,18 +191,20 @@ class ChargeController:
         logger.debug(f"Charger targets {charger_targets}")
 
         try:
-            easee: EaseeCharger = get_client(
-                os.environ.get("EASEE_SITE"),
-                os.environ.get("EASEECLIENTID"),
-                os.environ.get("EASEECLIENTSECRET"),
-            )
-            await easee.init_data()
+            async with ClientSession() as session:
+                easee: EaseeCharger = get_client(
+                    os.environ.get("EASEE_SITE"),
+                    os.environ.get("EASEECLIENTID"),
+                    os.environ.get("EASEECLIENTSECRET"),
+                    session,
+                )
+                await easee.init_data()
 
-            await easee.charger.set_dynamic_charger_circuit_current(
-                *charger_targets, timeToLive=2
-            )
+                await easee.charger.set_dynamic_charger_circuit_current(
+                    *charger_targets, timeToLive=2
+                )
 
-            self._limit_last_updated = datetime.now()
+                self._limit_last_updated = datetime.now()
         except Exception as e:
             logger.error(e)
             logger.error("Failed to update charger", extra={"exception": e})
@@ -214,7 +217,7 @@ def check_env_vars():
         raise ValueError("EASEE_SITE must be set")
 
 
-async def handle_event(cloud_event: CloudEvent) -> None:
+async def handle_cloud_event(cloud_event: CloudEvent):
     # Print out the data from Pub/Sub, to prove that it worked
 
     check_env_vars()
@@ -263,4 +266,4 @@ async def handle_event(cloud_event: CloudEvent) -> None:
 
 @functions_framework.cloud_event
 def main(cloud_event: CloudEvent) -> None:
-    eventLoop.run_until_complete(handle_event(cloud_event))
+    eventLoop.run_until_complete(handle_cloud_event(cloud_event))
