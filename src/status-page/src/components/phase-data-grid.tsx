@@ -3,6 +3,7 @@ export interface PhaseDataProps {
   mapped_phase: string;
   target_current: number;
   samples: number[];
+  charger_target: number;
 }
 export function PhaseDataGrid(phaseDataProps: PhaseDataProps) {
   console.log("PhaseDataProps:", phaseDataProps);
@@ -15,7 +16,7 @@ export function PhaseDataGrid(phaseDataProps: PhaseDataProps) {
         </h1>
         <div className="flex flex-col items-center">
           <h2>Samples:</h2>
-          {phaseDataProps.samples.map((sample, index) => (
+          {phaseDataProps.samples.reverse().map((sample, index) => (
             <div
               key={index}
               className="w-8 h-8 flex items-center justify-center bg-gray-200 rounded"

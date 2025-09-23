@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { collection, getDocs } from "firebase/firestore";
+import { collection, getDocs, Timestamp } from "firebase/firestore";
 import { db } from "../firebase.client";
 import {
   PhaseDataGrid,
@@ -15,6 +15,7 @@ interface LocationData {
 export default function StatusData() {
   const [locations, setLocations] = useState<LocationData[]>([]);
   const [selectedLocation, setSelectedLocation] = useState<string>("");
+  const [locationData, setLocationData] = useState<LocationData | null>(null);
   const [dataToShow, setDataToShow] = useState<PhaseDataProps[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -60,20 +61,22 @@ export default function StatusData() {
       return;
     }
 
+    setLocationData(data);
+    console.log("Selected location data:", data);
+
     // Exclude 'id' and get all other properties
     const { id, ...phaseProps } = data;
 
-    console.log("data:", phaseProps);
     const propArray: PhaseDataProps[] = [];
 
     for (const phaseData of Object.values(phaseProps)) {
-      console.log(`Value:`, phaseData);
-      propArray.push({
-        ...(phaseData as PhaseDataProps),
-      });
+      if ((phaseData as PhaseDataProps)?.phase_id) {
+        propArray.push({
+          ...(phaseData as PhaseDataProps),
+        });
+      }
     }
 
-    console.log("dataToShow:", propArray);
     propArray.sort((a, b) => a.phase_id.localeCompare(b.phase_id));
     setDataToShow(propArray);
   }, [locations, selectedLocation]);
@@ -102,11 +105,17 @@ export default function StatusData() {
           </option>
         ))}
       </select>
-      {selectedLocation && dataToShow.length > 0 && (
-        <div className="mt-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {dataToShow.map((phaseData, index) => (
-            <PhaseDataGrid key={index} {...phaseData} />
-          ))}
+      {locationData && dataToShow.length > 0 && (
+        <div>
+          <h1>
+            Charger updated at:{" "}
+            {(locationData.updated_at as Timestamp).toDate().toLocaleString()}
+          </h1>
+          <div className="mt-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {dataToShow.map((phaseData, index) => (
+              <PhaseDataGrid key={index} {...phaseData} />
+            ))}
+          </div>
         </div>
       )}
     </div>
