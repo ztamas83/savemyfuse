@@ -159,7 +159,7 @@ class ChargeController:
 
         logger.debug(
             f"Target calculated {self._current_limits}",
-            extra={"json_fields": self._current_limits},
+            extra={"json_fields": {"limits": self._current_limits}},
         )
 
         self._is_charging = charging_on_phases > 0
@@ -167,11 +167,17 @@ class ChargeController:
         await self.save_phase_data()
 
     async def save_phase_data(self) -> None:
+        from google.cloud.firestore import SERVER_TIMESTAMP
         data_ref = self.dbClient.collection("measurements").document(self._location_id)
+        
+        phase_data_with_timestamp = {"updated_at": SERVER_TIMESTAMP}
+        
+        for phase_id in self._phases.keys():
+            phase_vars = vars(self._phases[phase_id])
+            phase_data_with_timestamp[phase_id] = phase_vars
 
-        await data_ref.set(
-            {phase_id: vars(self._phases[phase_id]) for phase_id in self._phases.keys()}
-        )
+        await data_ref.set(phase_data_with_timestamp)
+        
 
     async def update_charger(self) -> None:
         # TODO: add update frequency configuration
@@ -189,6 +195,10 @@ class ChargeController:
         charger_targets = self.get_current_limits()
 
         logger.debug(f"Charger targets {charger_targets}")
+        
+        from google.cloud.firestore import SERVER_TIMESTAMP
+        data_ref = self.dbClient.collection("measurements").document(self._location_id)
+        await data_ref.update({"charger_targets": charger_targets, "charger_updated_at": SERVER_TIMESTAMP})
 
         try:
             async with ClientSession() as session:
