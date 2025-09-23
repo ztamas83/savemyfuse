@@ -167,11 +167,18 @@ class ChargeController:
         await self.save_phase_data()
 
     async def save_phase_data(self) -> None:
+        from google.cloud.firestore import SERVER_TIMESTAMP
         data_ref = self.dbClient.collection("measurements").document(self._location_id)
+        
+        phase_data_with_timestamps = {}
+        
+        for phase_id in self._phases.keys():
+            phase_vars = vars(self._phases[phase_id])
+            phase_vars['updated_at'] = SERVER_TIMESTAMP
+            phase_data_with_timestamps[phase_id] = phase_vars
 
-        await data_ref.set(
-            {phase_id: vars(self._phases[phase_id]) for phase_id in self._phases.keys()}
-        )
+        await data_ref.set(phase_data_with_timestamps)
+        
 
     async def update_charger(self) -> None:
         # TODO: add update frequency configuration

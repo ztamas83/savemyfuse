@@ -1,6 +1,6 @@
 import collections
+import logging
 from typing import List
-from google.cloud import logging
 import json
 
 
@@ -13,6 +13,7 @@ class ElectricalPhase:
         mapped_phase: str,
         target_current: float,
         samples: List[float] = [],
+        
     ) -> None:
         self._phase_id = phase_id
         self._mapped_phase = mapped_phase
@@ -55,6 +56,7 @@ class ElectricalPhase:
     def samples(self) -> collections.deque:
         """Samples"""
         return self._samples
+    
 
     def add_sample(self, measurement: float) -> None:
         self._samples.append(measurement)
