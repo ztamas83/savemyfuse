@@ -24,6 +24,7 @@ variable "github_actions_roles" {
     "roles/pubsub.admin",
     "roles/iam.serviceAccountAdmin",
     "roles/storage.admin",
-    "roles/monitoring.admin"
+    "roles/monitoring.admin",
+    "roles/iam.serviceAccountUser"
   ]
 }

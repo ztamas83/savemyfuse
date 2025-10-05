@@ -63,6 +63,7 @@ jobs:
 
       # Initialize Terraform
       - name: Terraform Init
+        id: init
         run: |
           terraform init -backend-config="savemyfuse.backend"
         env:
@@ -70,6 +71,7 @@ jobs:
 
       # Validate Terraform configuration
       - name: Terraform Validate
+        id: validate
         run: terraform validate
 
       # Generate Terraform plan
