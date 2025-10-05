@@ -1,4 +1,4 @@
-module measurement-processor
+module github.com/ztamas83/measurement-processor
 
 go 1.25.1
 
