@@ -108,14 +108,6 @@ jobs:
 
             #### Terraform Plan 📖\`${{ steps.plan.outcome }}\`
 
-            <details><summary>Show Plan</summary>
-
-            \`\`\`terraform\n
-            ${process.env.PLAN}
-            \`\`\`
-
-            </details>
-
             *Pusher: @${{ github.actor }}, Action: \`${{ github.event_name }}\`, Working Directory: \`${{ env.TF_WORKING_DIR }}\`, Workflow: \`${{ github.workflow }}\`*`;
 
             github.rest.issues.createComment({
@@ -124,6 +116,12 @@ jobs:
               repo: context.repo.repo,
               body: output
             })
+      # Fail workflow if Terraform Plan failed
+      - name: Fail if Plan Failed
+        if: steps.plan.outcome == 'failure'
+        run: |
+          echo "Terraform plan failed. Failing the workflow."
+          exit 1
 
       # Apply Terraform changes (only on master branch)
       - name: Terraform Apply
