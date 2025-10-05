@@ -10,7 +10,7 @@ import (
 	cloudevents "github.com/cloudevents/sdk-go/v2"
 
 	"cloud.google.com/go/firestore"
-	"cloud.google.com/go/pubsub"
+	"cloud.google.com/go/logging"
 	"github.com/GoogleCloudPlatform/functions-framework-go/functions"
 )
 
@@ -52,7 +52,9 @@ type DbData struct {
 
 var (
 	firestoreClient *firestore.Client
-	pubsubClient    *pubsub.Client
+	// pubsubClient    *pubsub.Client
+	loggingClient  *logging.Client
+	logger					log.Logger
 	autoDetectProjectId       string
 	outputTopicID   = "your-output-topic" // Replace with your actual output topic ID
 )
@@ -62,19 +64,32 @@ func init() {
 	autoDetectProjectId = "savemyfuse" // Replace or fetch from environment variable
 
 	ctx := context.Background()
+	var err error
+
+	// Creates a client.
+	client, err := logging.NewClient(ctx, autoDetectProjectId)
+	if err != nil {
+		log.Fatalf("Failed to create logging client: %v", err)
+	}
+	// defer client.Close()
+
+	logName := "savemyfuse-measurement-processor"
+
+	logger = *client.Logger(logName).StandardLogger(logging.Info)
 
 	// Initialize Firestore Client
-	var err error
 	// firestoreClient, err = firestore.NewClient(ctx, autoDetectProjectId)
 	// if err != nil {
 	// 	log.Fatalf("firestore.NewClient: %v", err)
 	// }
 
 	// Initialize Pub/Sub Client
-	pubsubClient, err = pubsub.NewClient(ctx, autoDetectProjectId)
-	if err != nil {
-		log.Fatalf("pubsub.NewClient: %v", err)
-	}
+	// pubsubClient, err = pubsub.NewClient(ctx, autoDetectProjectId)
+	// if err != nil {
+	// 	logger.Fatalf("Failed to create pubsub client: %v", err)
+	// }
+
+
 
 	// Register the function
 	functions.CloudEvent("PubSubProcessor", PubSubProcessor)
@@ -84,14 +99,14 @@ func init() {
 func PubSubProcessor(ctx context.Context, m cloudevents.Event) error {
 	// 1. Decode Pub/Sub Message
 		
-	log.Printf("Received Pub/Sub message: %s", m.String())	
+	logger.Printf("Received Pub/Sub message: %s", m.String())	
 	var input IncomingMeasurement
 	if err := json.Unmarshal([]byte(string(m.Data())), &input); err != nil {
 		
 		return fmt.Errorf("json.Unmarshal: %w", err) // Return error for retry
 	}
 	
-	log.Printf("Processing measurement, reported: %s", input.LastReported.String())
+	logger.Printf("Processing measurement, reported: %s", input.LastReported.String())
 
 	// 2. Perform Calculation
 	// calculatedValue := input.Value * 10
