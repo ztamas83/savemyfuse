@@ -45,6 +45,12 @@ resource "google_service_account" "easee-controller" {
   display_name = "Easee Controller Function acc"
 }
 
+
+resource "google_service_account" "measurement-processor" {
+  account_id   = "measurement-processor-sa"
+  display_name = "Measurement Processor Function acc"
+}
+
 variable "controller_roles" {
   type = list(string)
   default = [
@@ -57,6 +63,8 @@ variable "controller_roles" {
     "roles/datastore.user"
   ]
 }
+
+
 
 resource "google_project_iam_member" "controller-role" {
   for_each = toset(var.controller_roles)
@@ -81,6 +89,41 @@ resource "google_storage_bucket_object" "object" {
   name   = "easee-control-${data.archive_file.easee-source-archive.output_sha256}.zip"
   bucket = google_storage_bucket.default.name
   source = data.archive_file.easee-source-archive.output_path # Add path to the zipped function source code
+}
+
+variable "processor_roles" {
+  type = list(string)
+  default = [
+    "roles/artifactregistry.createOnPushWriter",
+    "roles/eventarc.eventReceiver",
+    "roles/logging.logWriter",
+    "roles/pubsub.subscriber",
+    # "roles/secretmanager.secretAccessor",
+    # "roles/storage.objectAdmin",
+    # "roles/datastore.user"
+  ]
+}
+
+
+
+resource "google_project_iam_member" "processor-role" {
+  for_each = toset(var.processor_roles)
+  project = data.google_project.project.name
+  role    = each.value
+  member  = "serviceAccount:${google_service_account.measurement-processor.email}"
+}
+
+data "archive_file" "measurement-processor-zip" {
+  type        = "zip"
+  output_path = "/tmp/measurement-processor-function-source.zip"
+  source_dir  = "../src/measurement-processor/"
+  excludes = [ ".env", ".vscode", "cmd/**"]
+}
+
+resource "google_storage_bucket_object" "measurement-processor-src-object" {
+  name   = "measurement-processor-${data.archive_file.measurement-processor-zip.output_sha256}.zip"
+  bucket = google_storage_bucket.default.name
+  source = data.archive_file.measurement-processor-zip.output_path # Add path to the zipped function source code
 }
 
 resource "google_firestore_database" "database" {
@@ -151,6 +194,63 @@ resource "google_cloudfunctions2_function" "easee-control-func" {
     service_account_email = google_service_account.eventarc.email
   }
 
+}
+
+resource "google_cloudfunctions2_function" "measurement-processor-func" {
+  name        = "${var.project_id}-measurement-processor"
+  location    = "europe-north1"
+  description = "Measurement Processor function"
+  build_config {
+    runtime     = "go125"
+    entry_point = "PubSubProcessor" # Set the entry point
+    source {
+      storage_source {
+        bucket = google_storage_bucket.default.name
+        object = google_storage_bucket_object.measurement-processor-src-object.name
+      }
+    }
+  }
+
+  service_config {
+    max_instance_count = 1
+    min_instance_count = 0
+    available_memory   = "256Mi"
+    timeout_seconds    = 30
+
+    ingress_settings = "ALLOW_INTERNAL_ONLY"
+    
+
+    # environment_variables = {
+    #   EASEECLIENTID = var.easee_user
+    #   LOG_LEVEL = var.LOG_LEVEL
+    #   CONF_PHASES = join(",", var.EASEE_PHASES)
+    # }
+
+    # secret_environment_variables {
+    #   key        = "EASEECLIENTSECRET"
+    #   project_id = data.google_project.project.name
+    #   secret     = var.easee_secret_id
+    #   version    = "latest"
+    # }
+
+    # secret_environment_variables {
+    #   key        = "EASEE_SITE"
+    #   project_id = data.google_project.project.name
+    #   secret     = var.easee_site_secret_id
+    #   version    = "latest"
+    # # }
+
+    service_account_email = google_service_account.measurement-processor.email
+  }
+
+
+  event_trigger {
+    trigger_region = "europe-north1"
+    event_type = "google.cloud.pubsub.topic.v1.messagePublished"
+    pubsub_topic = google_pubsub_topic.measurements_topic.id
+    retry_policy = "RETRY_POLICY_DO_NOT_RETRY"
+    service_account_email = google_service_account.eventarc.email
+  }
 }
 
 resource "google_monitoring_notification_channel" "email" {
