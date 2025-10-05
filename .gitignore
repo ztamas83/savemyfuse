@@ -48,6 +48,15 @@ coverage.xml
 *.cover
 *.py,cover
 .hypothesis/
+
+# Terraform
+*.tfstate
+*.tfstate.*
+*.tfvars
+!*.tfvars.example
+.terraform/
+.terraform.lock.hcl
+tfplan
 .pytest_cache/
 cover/
 

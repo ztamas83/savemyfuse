@@ -2,12 +2,12 @@ terraform {
   required_providers {
     google = {
       source  = "hashicorp/google"
-      version = ">= 6.21.0"
+      version = ">= 7.5.0"
     }
   }
 
   backend "gcs" {
-    
+    bucket = "savemyfuse-tf-states"
   }
 }
 

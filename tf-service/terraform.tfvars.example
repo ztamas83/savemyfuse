@@ -1,0 +1,21 @@
+# Terraform Variables File
+# Copy this file to terraform.tfvars and fill in your values
+
+# Google Cloud Project Configuration
+project_id = "your-gcp-project-id"
+region     = "europe-north1"
+
+# Easee Configuration
+easee_user = "your-easee-username"
+
+# Admin Configuration
+admin_email = "your-admin@example.com"
+
+# Optional: Chat notification channel (can be null)
+chat_notification_channel = null
+
+# Optional: Log level
+LOG_LEVEL = "INFO"
+
+# Optional: Easee phases
+EASEE_PHASES = ["L1"]

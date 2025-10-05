@@ -1,0 +1,19 @@
+# Infrastructure Terraform Variables
+# Copy this file to terraform.tfvars and fill in your values
+
+project_id = "your-gcp-project-id"
+region     = "europe-north1"
+
+# GitHub repository (should match your actual repository)
+github_repository = "<username>/savemyfuse"
+
+# IAM roles for GitHub Actions service account
+# These are the minimum required roles for your application
+github_actions_roles = [
+  "roles/datastore.owner",
+  "roles/cloudfunctions.admin", 
+  "roles/resourcemanager.projectIamAdmin",
+  "roles/pubsub.admin",
+  "roles/iam.serviceAccountAdmin",
+  "roles/storage.admin"
+]

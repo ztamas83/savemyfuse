@@ -1,0 +1,132 @@
+name: Deploy service to Google Cloud
+
+on:
+  push:
+    branches:
+      - master
+    paths:
+      - "tf-service/**"
+      - "src/easee-control/**"
+      - ".github/workflows/deploy.yml"
+  pull_request:
+    branches:
+      - master
+    paths:
+      - "tf-service/**"
+      - "src/easee-control/**"
+      - ".github/workflows/deploy.yml"
+  workflow_dispatch:
+
+env:
+  TF_VERSION: "1.13.0"
+  TF_WORKING_DIR: "./tf-service"
+
+jobs:
+  terraform:
+    name: "Terraform"
+    runs-on: ubuntu-latest
+
+    # Set permissions for the GitHub token to allow authentication
+    permissions:
+      contents: read
+      id-token: write
+      #pull-requests: write
+
+    defaults:
+      run:
+        working-directory: ${{ env.TF_WORKING_DIR }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # Authenticate to Google Cloud using Workload Identity Federation
+      - name: Authenticate to Google Cloud
+        id: auth
+        uses: google-github-actions/auth@v3
+        with:
+          workload_identity_provider: ${{ secrets.WIF_PROVIDER }}
+          service_account: ${{ secrets.WIF_SERVICE_ACCOUNT }}
+          token_format: "access_token"
+
+      # Setup Terraform
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+
+      # Initialize Terraform
+      - name: Terraform Init
+        run: |
+          terraform init -backend-config="savemyfuse.backend"
+        env:
+          GOOGLE_OAUTH_ACCESS_TOKEN: ${{ steps.auth.outputs.access_token }}
+
+      # Validate Terraform configuration
+      - name: Terraform Validate
+        run: terraform validate
+
+      # Generate Terraform plan
+      - name: Terraform Plan
+        id: plan
+        run: |
+          terraform plan -var-file="terraform.tfvars" -out=tfplan -no-color
+        env:
+          GOOGLE_OAUTH_ACCESS_TOKEN: ${{ steps.auth.outputs.access_token }}
+          TF_VAR_project_id: ${{ vars.GCP_PROJECT_ID }}
+          TF_VAR_easee_user: ${{ secrets.EASEE_USER }}
+          TF_VAR_admin_email: ${{ secrets.ADMIN_EMAIL }}
+          TF_VAR_chat_notification_channel: ${{ secrets.CHAT_NOTIFICATION_CHANNEL }}
+          TF_VAR_EASEE_PHASES: '[ "L1", "L3", "L2" ]' # temporary setting this should be part of per site configuration
+        continue-on-error: true
+
+      # Comment on PR with plan results
+      - name: Comment on PR
+        uses: actions/github-script@v7
+        if: github.event_name == 'pull_request'
+        env:
+          PLAN: "${{ steps.plan.outputs.stdout }}"
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const output = `#### Terraform Format and Style 🖌\`${{ steps.fmt.outcome }}\`
+            #### Terraform Initialization ⚙️\`${{ steps.init.outcome }}\`
+            #### Terraform Validation 🤖\`${{ steps.validate.outcome }}\`
+            <details><summary>Validation Output</summary>
+
+            \`\`\`\n
+            ${{ steps.validate.outputs.stdout }}
+            \`\`\`
+
+            </details>
+
+            #### Terraform Plan 📖\`${{ steps.plan.outcome }}\`
+
+            <details><summary>Show Plan</summary>
+
+            \`\`\`terraform\n
+            ${process.env.PLAN}
+            \`\`\`
+
+            </details>
+
+            *Pusher: @${{ github.actor }}, Action: \`${{ github.event_name }}\`, Working Directory: \`${{ env.TF_WORKING_DIR }}\`, Workflow: \`${{ github.workflow }}\`*`;
+
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: output
+            })
+
+      # Apply Terraform changes (only on master branch)
+      - name: Terraform Apply
+        if: github.ref == 'refs/heads/master'
+        run: |
+          terraform apply tfplan
+        env:
+          GOOGLE_OAUTH_ACCESS_TOKEN: ${{ steps.auth.outputs.access_token }}
+          TF_VAR_project_id: ${{ vars.GCP_PROJECT_ID }}
+          TF_VAR_easee_user: ${{ secrets.EASEE_USER }}
+          TF_VAR_admin_email: ${{ secrets.ADMIN_EMAIL }}
+          TF_VAR_chat_notification_channel: ${{ secrets.CHAT_NOTIFICATION_CHANNEL }}
