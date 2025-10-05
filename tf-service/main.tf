@@ -7,7 +7,7 @@ terraform {
   }
 
   backend "gcs" {
-    bucket = "savemyfuse-tf-states"
+    
   }
 }
 

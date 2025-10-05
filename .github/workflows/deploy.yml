@@ -55,6 +55,12 @@ jobs:
         with:
           terraform_version: ${{ env.TF_VERSION }}
 
+      - name: Create backend config
+        env:
+          GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
+        run: |
+          echo "bucket = \"${GCP_PROJECT_ID}-tf-states\"" > savemyfuse.backend
+
       # Initialize Terraform
       - name: Terraform Init
         run: |
