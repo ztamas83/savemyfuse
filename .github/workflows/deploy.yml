@@ -30,7 +30,7 @@ jobs:
     permissions:
       contents: read
       id-token: write
-      #pull-requests: write
+      pull-requests: write
 
     defaults:
       run:
@@ -76,7 +76,7 @@ jobs:
       - name: Terraform Plan
         id: plan
         run: |
-          terraform plan -var-file="terraform.tfvars" -out=tfplan -no-color
+          terraform plan -out=tfplan -no-color
         env:
           GOOGLE_OAUTH_ACCESS_TOKEN: ${{ steps.auth.outputs.access_token }}
           TF_VAR_project_id: ${{ vars.GCP_PROJECT_ID }}
@@ -108,14 +108,6 @@ jobs:
 
             #### Terraform Plan 📖\`${{ steps.plan.outcome }}\`
 
-            <details><summary>Show Plan</summary>
-
-            \`\`\`terraform\n
-            ${process.env.PLAN}
-            \`\`\`
-
-            </details>
-
             *Pusher: @${{ github.actor }}, Action: \`${{ github.event_name }}\`, Working Directory: \`${{ env.TF_WORKING_DIR }}\`, Workflow: \`${{ github.workflow }}\`*`;
 
             github.rest.issues.createComment({
@@ -124,6 +116,12 @@ jobs:
               repo: context.repo.repo,
               body: output
             })
+      # Fail workflow if Terraform Plan failed
+      - name: Fail if Plan Failed
+        if: steps.plan.outcome == 'failure'
+        run: |
+          echo "Terraform plan failed. Failing the workflow."
+          exit 1
 
       # Apply Terraform changes (only on master branch)
       - name: Terraform Apply
@@ -136,3 +134,4 @@ jobs:
           TF_VAR_easee_user: ${{ secrets.EASEE_USER }}
           TF_VAR_admin_email: ${{ secrets.ADMIN_EMAIL }}
           TF_VAR_chat_notification_channel: ${{ secrets.CHAT_NOTIFICATION_CHANNEL }}
+          TF_VAR_EASEE_PHASES: '[ "L1", "L3", "L2" ]' # temporary setting this should be part of per site configuration
