@@ -99,7 +99,7 @@ resource "google_project_iam_member" "controller-role" {
 
 resource "google_storage_bucket" "gcf-source" {
   name                        = "${var.project_id}-${local.service_name}-gcf-source" # Every bucket name must be globally unique
-  location                    = "europe-north2"
+  location                    = var.region
   uniform_bucket_level_access = true
 }
 
@@ -165,7 +165,7 @@ resource "google_pubsub_topic" "measurements_topic" {
 resource "google_cloudfunctions2_function" "easee-control-func" {
   depends_on = [ google_project_service.required_apis ]
   name        = "${local.service_name}-function-easee-control"
-  location    = "europe-north1"
+  location    = var.region
   description = "Easee control function"
 
   build_config {
@@ -213,7 +213,7 @@ resource "google_cloudfunctions2_function" "easee-control-func" {
 
 
   event_trigger {
-    trigger_region = "europe-north1"
+    trigger_region = var.region
     event_type = "google.cloud.pubsub.topic.v1.messagePublished"
     pubsub_topic = google_pubsub_topic.measurements_topic.id
     retry_policy = "RETRY_POLICY_DO_NOT_RETRY"
@@ -229,7 +229,7 @@ resource "google_cloudfunctions2_function" "easee-control-func" {
 resource "google_cloudfunctions2_function" "measurement-processor-func" {
   depends_on = [ google_project_service.required_apis ]
   name        = "${local.service_name}-measurement-processor"
-  location    = "europe-north1"
+  location    = var.region
   description = "${local.service_name} Measurement Processor function"
   build_config {
     runtime     = "go125"
@@ -279,7 +279,7 @@ resource "google_cloudfunctions2_function" "measurement-processor-func" {
 
 
   event_trigger {
-    trigger_region = "europe-north1"
+    trigger_region = var.region
     event_type = "google.cloud.pubsub.topic.v1.messagePublished"
     pubsub_topic = google_pubsub_topic.measurements_topic.id
     retry_policy = "RETRY_POLICY_DO_NOT_RETRY"
