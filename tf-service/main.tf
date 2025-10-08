@@ -46,7 +46,7 @@ resource "google_project_service" "required_apis" {
 
 # Create a dedicated service account
 resource "google_service_account" "eventarc" {
-  account_id   = "eventarc-trigger-sa"
+  account_id   = "${local.service_name}-eventarc-sa"
   display_name = "Eventarc Trigger Service Account"
 }
 
