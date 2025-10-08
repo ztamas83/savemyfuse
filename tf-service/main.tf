@@ -65,13 +65,13 @@ resource "google_project_iam_member" "runinvoker" {
 }
 
 resource "google_service_account" "easee-controller" {
-  account_id   = "easee-controller-sa"
+  account_id   = "${local.service_name}-easee-ctrl-sa"
   display_name = "Easee Controller Function acc"
 }
 
 
 resource "google_service_account" "measurement-processor" {
-  account_id   = "measurement-processor-sa"
+  account_id   = "${local.service_name}-processor-sa"
   display_name = "Measurement Processor Function acc"
 }
 
@@ -97,9 +97,9 @@ resource "google_project_iam_member" "controller-role" {
   member  = "serviceAccount:${google_service_account.easee-controller.email}"
 }
 
-resource "google_storage_bucket" "default" {
-  name                        = "${random_id.default.hex}-gcf-source" # Every bucket name must be globally unique
-  location                    = "europe-north1"
+resource "google_storage_bucket" "gcf-source" {
+  name                        = "${var.project_id}-${local.service_name}-gcf-source" # Every bucket name must be globally unique
+  location                    = "europe-north2"
   uniform_bucket_level_access = true
 }
 
@@ -110,8 +110,8 @@ data "archive_file" "easee-source-archive" {
   excludes = [ ".venv", ".env", ".vscode", "test.json", "__pycache__" ]
 }
 resource "google_storage_bucket_object" "object" {
-  name   = "easee-control-${data.archive_file.easee-source-archive.output_sha256}.zip"
-  bucket = google_storage_bucket.default.name
+  name   = "${local.service_name}-easee-control-${data.archive_file.easee-source-archive.output_sha256}.zip"
+  bucket = google_storage_bucket.gcf-source.name
   source = data.archive_file.easee-source-archive.output_path # Add path to the zipped function source code
 }
 
@@ -145,8 +145,8 @@ data "archive_file" "measurement-processor-zip" {
 }
 
 resource "google_storage_bucket_object" "measurement-processor-src-object" {
-  name   = "measurement-processor-${data.archive_file.measurement-processor-zip.output_sha256}.zip"
-  bucket = google_storage_bucket.default.name
+  name   = "${local.service_name}-measurement-processor-${data.archive_file.measurement-processor-zip.output_sha256}.zip"
+  bucket = google_storage_bucket.gcf-source.name
   source = data.archive_file.measurement-processor-zip.output_path # Add path to the zipped function source code
 }
 
@@ -164,7 +164,7 @@ resource "google_pubsub_topic" "measurements_topic" {
 
 resource "google_cloudfunctions2_function" "easee-control-func" {
   depends_on = [ google_project_service.required_apis ]
-  name        = "function-easee-control"
+  name        = "${local.service_name}-function-easee-control"
   location    = "europe-north1"
   description = "Easee control function"
 
@@ -173,7 +173,7 @@ resource "google_cloudfunctions2_function" "easee-control-func" {
     entry_point = "main" # Set the entry point
     source {
       storage_source {
-        bucket = google_storage_bucket.default.name
+        bucket = google_storage_bucket.gcf-source.name
         object = google_storage_bucket_object.object.name
       }
     }
@@ -220,25 +220,29 @@ resource "google_cloudfunctions2_function" "easee-control-func" {
     service_account_email = google_service_account.eventarc.email
   }
 
+  labels = {
+    service = local.service_name
+  }
+
 }
 
 resource "google_cloudfunctions2_function" "measurement-processor-func" {
   depends_on = [ google_project_service.required_apis ]
-  name        = "savemyfuse-measurement-processor"
+  name        = "${local.service_name}-measurement-processor"
   location    = "europe-north1"
-  description = "Measurement Processor function"
+  description = "${local.service_name} Measurement Processor function"
   build_config {
     runtime     = "go125"
     entry_point = "PubSubProcessor" # Set the entry point
     source {
       storage_source {
-        bucket = google_storage_bucket.default.name
+        bucket = google_storage_bucket.gcf-source.name
         object = google_storage_bucket_object.measurement-processor-src-object.name
       }
     }
   }
   labels = {
-    service = "savemyfuse"
+    service = local.service_name
   }
 
   service_config {
