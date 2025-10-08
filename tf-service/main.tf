@@ -151,6 +151,7 @@ resource "google_storage_bucket_object" "measurement-processor-src-object" {
 }
 
 resource "google_firestore_database" "database" {
+  depends_on = [ google_project_service.required_apis ]
   project     = data.google_project.project.name
   name        = "(default)"
   location_id = var.region
@@ -162,6 +163,7 @@ resource "google_pubsub_topic" "measurements_topic" {
 }
 
 resource "google_cloudfunctions2_function" "easee-control-func" {
+  depends_on = [ google_project_service.required_apis ]
   name        = "function-easee-control"
   location    = "europe-north1"
   description = "Easee control function"
@@ -221,7 +223,8 @@ resource "google_cloudfunctions2_function" "easee-control-func" {
 }
 
 resource "google_cloudfunctions2_function" "measurement-processor-func" {
-  name        = "${var.project_id}-measurement-processor"
+  depends_on = [ google_project_service.required_apis ]
+  name        = "savemyfuse-measurement-processor"
   location    = "europe-north1"
   description = "Measurement Processor function"
   build_config {
@@ -233,6 +236,9 @@ resource "google_cloudfunctions2_function" "measurement-processor-func" {
         object = google_storage_bucket_object.measurement-processor-src-object.name
       }
     }
+  }
+  labels = {
+    service = "savemyfuse"
   }
 
   service_config {
@@ -278,12 +284,13 @@ resource "google_cloudfunctions2_function" "measurement-processor-func" {
 }
 
 resource "google_monitoring_notification_channel" "email" {
+ 
  display_name = "Owner e-mail"
    type = "email"
    labels = {
      email_address = var.admin_email
-   }
- }
+  }
+}
 
 
 resource "google_monitoring_notification_channel" "chat" {

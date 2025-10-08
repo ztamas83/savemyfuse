@@ -9,8 +9,8 @@ terraform {
 
   # use GCS backend - ensure that the bucket name exists and the user has access to write it
   backend "gcs" {
-    bucket = "savemyfuse-tf-states"
-    prefix = "infrastructure"
+    bucket = "zcloud-tf-states"
+    prefix = "savemyfuse/infra"
   }
 }
 
@@ -28,7 +28,13 @@ data "google_project" "current" {
 resource "google_project_service" "required_apis" {
   for_each = toset([
     "iamcredentials.googleapis.com",
-    "sts.googleapis.com"
+    "sts.googleapis.com",
+    "iam.googleapis.com",
+    "cloudfunctions.googleapis.com",
+    "datastore.googleapis.com",
+    "pubsub.googleapis.com",
+    "run.googleapis.com",
+    "cloudbuild.googleapis.com",
   ])
   
   project = var.project_id

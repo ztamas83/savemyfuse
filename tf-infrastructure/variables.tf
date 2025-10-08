@@ -25,6 +25,10 @@ variable "github_actions_roles" {
     "roles/iam.serviceAccountAdmin",
     "roles/storage.admin",
     "roles/monitoring.admin",
-    "roles/iam.serviceAccountUser"
+    "roles/iam.serviceAccountUser",
+    "roles/eventarc.admin",
+    "roles/artifactregistry.admin",
+    "roles/run.admin",
+    "roles/serviceusage.serviceUsageAdmin",
   ]
 }

@@ -23,7 +23,7 @@ env:
 
 jobs:
   terraform:
-    name: "Terraform"
+    name: "Deploy Savemyfuse Service"
     runs-on: ubuntu-latest
 
     # Set permissions for the GitHub token to allow authentication
@@ -60,7 +60,7 @@ jobs:
           BUCKET: ${{ vars.TF_BACKEND_BUCKET }}
         run: |
           echo "bucket = \"${BUCKET}\"" >> savemyfuse.backend
-          echo "prefix = \"savemyfuse-service\"" >> savemyfuse.backend
+          echo "prefix = \"savemyfuse/service\"" >> savemyfuse.backend
 
       # Initialize Terraform
       - name: Terraform Init
