@@ -159,7 +159,7 @@ resource "google_firestore_database" "database" {
 }
 
 resource "google_pubsub_topic" "measurements_topic" {
-  name = "measurements"
+  name = "${local.service_name}-measurements"
 }
 
 resource "google_cloudfunctions2_function" "easee-control-func" {
