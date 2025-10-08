@@ -7,15 +7,15 @@ terraform {
   }
 
   backend "gcs" {
-    
+
   }
 }
 
 provider "google" {
-  region      = var.region
-  project   = var.project_id
+  region  = var.region
+  project = var.project_id
 }
-data "google_project" "project" { }
+data "google_project" "project" {}
 resource "random_id" "default" {
   byte_length = 8
 }
@@ -37,10 +37,10 @@ resource "google_project_service" "required_apis" {
     "cloudresourcemanager.googleapis.com",
     "artifactregistry.googleapis.com"
   ])
-  
+
   project = var.project_id
   service = each.value
-  
+
   disable_on_destroy = false
 }
 
@@ -92,27 +92,29 @@ variable "controller_roles" {
 
 resource "google_project_iam_member" "controller-role" {
   for_each = toset(var.controller_roles)
-  project = data.google_project.project.name
-  role    = each.value
-  member  = "serviceAccount:${google_service_account.easee-controller.email}"
+  project  = data.google_project.project.name
+  role     = each.value
+  member   = "serviceAccount:${google_service_account.easee-controller.email}"
 }
 
 resource "google_storage_bucket" "gcf-source" {
   name                        = "${var.project_id}-${local.service_name}-gcf-source" # Every bucket name must be globally unique
   location                    = var.region
   uniform_bucket_level_access = true
+  force_destroy               = true
 }
 
 data "archive_file" "easee-source-archive" {
   type        = "zip"
   output_path = "/tmp/function-source.zip"
   source_dir  = "../src/easee-control/"
-  excludes = [ ".venv", ".env", ".vscode", "test.json", "__pycache__" ]
+  excludes    = [".venv", ".env", ".vscode", "test.json", "__pycache__"]
 }
 resource "google_storage_bucket_object" "object" {
   name   = "${local.service_name}-easee-control-${data.archive_file.easee-source-archive.output_sha256}.zip"
   bucket = google_storage_bucket.gcf-source.name
   source = data.archive_file.easee-source-archive.output_path # Add path to the zipped function source code
+
 }
 
 variable "processor_roles" {
@@ -132,16 +134,16 @@ variable "processor_roles" {
 
 resource "google_project_iam_member" "processor-role" {
   for_each = toset(var.processor_roles)
-  project = data.google_project.project.name
-  role    = each.value
-  member  = "serviceAccount:${google_service_account.measurement-processor.email}"
+  project  = data.google_project.project.name
+  role     = each.value
+  member   = "serviceAccount:${google_service_account.measurement-processor.email}"
 }
 
 data "archive_file" "measurement-processor-zip" {
   type        = "zip"
   output_path = "/tmp/measurement-processor-function-source.zip"
   source_dir  = "../src/measurement-processor/"
-  excludes = [ ".env", ".vscode", "cmd/**"]
+  excludes    = [".env", ".vscode", "cmd/**"]
 }
 
 resource "google_storage_bucket_object" "measurement-processor-src-object" {
@@ -151,7 +153,7 @@ resource "google_storage_bucket_object" "measurement-processor-src-object" {
 }
 
 resource "google_firestore_database" "database" {
-  depends_on = [ google_project_service.required_apis ]
+  depends_on  = [google_project_service.required_apis]
   project     = data.google_project.project.name
   name        = "(default)"
   location_id = var.region
@@ -163,7 +165,7 @@ resource "google_pubsub_topic" "measurements_topic" {
 }
 
 resource "google_cloudfunctions2_function" "easee-control-func" {
-  depends_on = [ google_project_service.required_apis ]
+  depends_on  = [google_project_service.required_apis]
   name        = "${local.service_name}-function-easee-control"
   location    = var.region
   description = "Easee control function"
@@ -186,12 +188,12 @@ resource "google_cloudfunctions2_function" "easee-control-func" {
     timeout_seconds    = 30
 
     ingress_settings = "ALLOW_INTERNAL_ONLY"
-    
+
 
     environment_variables = {
       EASEECLIENTID = var.easee_user
-      LOG_LEVEL = var.LOG_LEVEL
-      CONF_PHASES = join(",", var.EASEE_PHASES)
+      LOG_LEVEL     = var.LOG_LEVEL
+      CONF_PHASES   = join(",", var.EASEE_PHASES)
     }
 
     secret_environment_variables {
@@ -213,10 +215,10 @@ resource "google_cloudfunctions2_function" "easee-control-func" {
 
 
   event_trigger {
-    trigger_region = var.region
-    event_type = "google.cloud.pubsub.topic.v1.messagePublished"
-    pubsub_topic = google_pubsub_topic.measurements_topic.id
-    retry_policy = "RETRY_POLICY_DO_NOT_RETRY"
+    trigger_region        = var.region
+    event_type            = "google.cloud.pubsub.topic.v1.messagePublished"
+    pubsub_topic          = google_pubsub_topic.measurements_topic.id
+    retry_policy          = "RETRY_POLICY_DO_NOT_RETRY"
     service_account_email = google_service_account.eventarc.email
   }
 
@@ -227,7 +229,7 @@ resource "google_cloudfunctions2_function" "easee-control-func" {
 }
 
 resource "google_cloudfunctions2_function" "measurement-processor-func" {
-  depends_on = [ google_project_service.required_apis ]
+  depends_on  = [google_project_service.required_apis]
   name        = "${local.service_name}-measurement-processor"
   location    = var.region
   description = "${local.service_name} Measurement Processor function"
@@ -252,7 +254,7 @@ resource "google_cloudfunctions2_function" "measurement-processor-func" {
     timeout_seconds    = 30
 
     ingress_settings = "ALLOW_INTERNAL_ONLY"
-    
+
 
     # environment_variables = {
     #   EASEECLIENTID = var.easee_user
@@ -279,31 +281,31 @@ resource "google_cloudfunctions2_function" "measurement-processor-func" {
 
 
   event_trigger {
-    trigger_region = var.region
-    event_type = "google.cloud.pubsub.topic.v1.messagePublished"
-    pubsub_topic = google_pubsub_topic.measurements_topic.id
-    retry_policy = "RETRY_POLICY_DO_NOT_RETRY"
+    trigger_region        = var.region
+    event_type            = "google.cloud.pubsub.topic.v1.messagePublished"
+    pubsub_topic          = google_pubsub_topic.measurements_topic.id
+    retry_policy          = "RETRY_POLICY_DO_NOT_RETRY"
     service_account_email = google_service_account.eventarc.email
   }
 }
 
 resource "google_monitoring_notification_channel" "email" {
- 
- display_name = "Owner e-mail"
-   type = "email"
-   labels = {
-     email_address = var.admin_email
+
+  display_name = "Owner e-mail"
+  type         = "email"
+  labels = {
+    email_address = var.admin_email
   }
 }
 
 
 resource "google_monitoring_notification_channel" "chat" {
-   count = var.chat_notification_channel != null ? 1 : 0
-   display_name = "Google Chat notifications"
-   type = "google_chat"
-   labels = {
-     space = var.chat_notification_channel
-   }
+  count        = var.chat_notification_channel != null ? 1 : 0
+  display_name = "Google Chat notifications"
+  type         = "google_chat"
+  labels = {
+    space = var.chat_notification_channel
+  }
 }
 
 # resource "google_monitoring_alert_policy" "alert_policy" {
