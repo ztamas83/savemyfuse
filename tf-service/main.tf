@@ -20,6 +20,30 @@ resource "random_id" "default" {
   byte_length = 8
 }
 
+
+# Enable required APIs
+resource "google_project_service" "required_apis" {
+  for_each = toset([
+    "firestore.googleapis.com",
+    "pubsub.googleapis.com",
+    "run.googleapis.com",
+    "iam.googleapis.com",
+    "storage.googleapis.com",
+    "cloudfunctions.googleapis.com",
+    "cloudbuild.googleapis.com",
+    "eventarc.googleapis.com",
+    "secretmanager.googleapis.com",
+    "monitoring.googleapis.com",
+    "cloudresourcemanager.googleapis.com",
+    "artifactregistry.googleapis.com"
+  ])
+  
+  project = var.project_id
+  service = each.value
+  
+  disable_on_destroy = false
+}
+
 # Create a dedicated service account
 resource "google_service_account" "eventarc" {
   account_id   = "eventarc-trigger-sa"
