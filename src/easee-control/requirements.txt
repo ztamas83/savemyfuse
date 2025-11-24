@@ -1,4 +1,4 @@
-functions-framework==3.9.2
+functions-framework==3.10.0
 pyeasee==0.8.15
 google_cloud_secret_manager
 python-dotenv
