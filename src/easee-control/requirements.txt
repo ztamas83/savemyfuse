@@ -1,5 +1,5 @@
 functions-framework==3.10.0
-pyeasee==0.8.15
+pyeasee==0.8.16
 google_cloud_secret_manager
 python-dotenv
 protobuf
