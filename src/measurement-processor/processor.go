@@ -5,10 +5,12 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"os"
 	"time"
 
 	cloudevents "github.com/cloudevents/sdk-go/v2"
 
+	"cloud.google.com/go/compute/metadata"
 	"cloud.google.com/go/firestore"
 	"cloud.google.com/go/logging"
 	"github.com/GoogleCloudPlatform/functions-framework-go/functions"
@@ -19,29 +21,29 @@ type PubSubMessage struct {
 }
 
 type IncomingMeasurement struct {
-    EntityID     string                 `json:"entity_id"`
-    State        string                 `json:"state"`
-    Attributes   CharginAttributes `json:"attributes"`
-    LastChanged  time.Time              `json:"last_changed"`
-    LastReported time.Time              `json:"last_reported"`
-    LastUpdated  time.Time              `json:"last_updated"`
-    Context      Context                `json:"context"`
+	EntityID     string            `json:"entity_id"`
+	State        string            `json:"state"`
+	Attributes   CharginAttributes `json:"attributes"`
+	LastChanged  time.Time         `json:"last_changed"`
+	LastReported time.Time         `json:"last_reported"`
+	LastUpdated  time.Time         `json:"last_updated"`
+	Context      Context           `json:"context"`
 }
 
 type CharginAttributes struct {
-	  TotalL1 float64 `json:"total_l1"`
-		TotalL2 float64 `json:"total_l2"`
-		TotalL3 float64 `json:"total_l3"`
-		ChargerL1 float64 `json:"charger_l1"`
-		ChargerL2 float64 `json:"charger_l2"`
-		ChargerL3 float64 `json:"charger_l3"`
-		friendly_name string `json:"friendly_name"`
+	TotalL1       float64 `json:"total_l1"`
+	TotalL2       float64 `json:"total_l2"`
+	TotalL3       float64 `json:"total_l3"`
+	ChargerL1     float64 `json:"charger_l1"`
+	ChargerL2     float64 `json:"charger_l2"`
+	ChargerL3     float64 `json:"charger_l3"`
+	friendly_name string  `json:"friendly_name"`
 }
 
 type Context struct {
-    ID       string  `json:"id"`
-    ParentID *string `json:"parent_id"`
-    UserID   *string `json:"user_id"`
+	ID       string  `json:"id"`
+	ParentID *string `json:"parent_id"`
+	UserID   *string `json:"user_id"`
 }
 
 // Define the structure for the data you will store in Firestore
@@ -53,18 +55,35 @@ type DbData struct {
 var (
 	firestoreClient *firestore.Client
 	// pubsubClient    *pubsub.Client
-	loggingClient  *logging.Client
-	logger					log.Logger
-	autoDetectProjectId       string
-	outputTopicID   = "your-output-topic" // Replace with your actual output topic ID
+	loggingClient       *logging.Client
+	logger              log.Logger
+	autoDetectProjectId string
+	outputTopicID       = "your-output-topic" // Replace with your actual output topic ID
 )
 
 func init() {
-	// Use the GOOGLE_CLOUD_PROJECT environment variable provided by Cloud Functions
-	autoDetectProjectId = "savemyfuse" // Replace or fetch from environment variable
+	var err error
 
 	ctx := context.Background()
-	var err error
+
+	// 1. Try to get project ID from Metadata Server
+	if metadata.OnGCE() {
+		autoDetectProjectId, err = metadata.ProjectIDWithContext(ctx)
+		if err != nil {
+			log.Printf("Warning: Failed to fetch Project ID from metadata server: %v", err)
+		}
+	}
+
+	// 2. Fallback to GOOGLE_CLOUD_PROJECT environment variable
+	if autoDetectProjectId == "" {
+		log.Printf("Not running on GCE, skipping metadata server check.")
+		autoDetectProjectId = os.Getenv("GOOGLE_CLOUD_PROJECT")
+	}
+
+	// 3. Emit error if project cannot be decided
+	if autoDetectProjectId == "" {
+		log.Fatalf("Project ID could not be determined. Please set GOOGLE_CLOUD_PROJECT environment variable or ensure Metadata Server is accessible.")
+	}
 
 	// Creates a client.
 	client, err := logging.NewClient(ctx, autoDetectProjectId)
@@ -89,8 +108,6 @@ func init() {
 	// 	logger.Fatalf("Failed to create pubsub client: %v", err)
 	// }
 
-
-
 	// Register the function
 	functions.CloudEvent("PubSubProcessor", PubSubProcessor)
 }
@@ -98,14 +115,14 @@ func init() {
 // PubSubProcessor is the entry point for the Cloud Function.
 func PubSubProcessor(ctx context.Context, m cloudevents.Event) error {
 	// 1. Decode Pub/Sub Message
-		
-	logger.Printf("Received Pub/Sub message: %s", m.String())	
+
+	logger.Printf("Received Pub/Sub message: %s", m.String())
 	var input IncomingMeasurement
 	if err := json.Unmarshal([]byte(string(m.Data())), &input); err != nil {
-		
+
 		return fmt.Errorf("json.Unmarshal: %w", err) // Return error for retry
 	}
-	
+
 	logger.Printf("Processing measurement, reported: %s", input.LastReported.String())
 
 	// 2. Perform Calculation
