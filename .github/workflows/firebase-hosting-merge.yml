@@ -14,8 +14,11 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          sparse-checkout: |
+            src/status-page
+      - run: mv src/status-page/* ${GITHUB_WORKSPACE}/
       - run: npm ci && npm run build
-        working-directory: ./src/status-page
       - uses: FirebaseExtended/action-hosting-deploy@v0
         with:
           repoToken: ${{ secrets.GITHUB_TOKEN }}
@@ -23,4 +26,3 @@ jobs:
           channelId: live
           projectId: zcloud-se
           target: savemyfuse-admin
-          entryPoint: ./src/status-page
