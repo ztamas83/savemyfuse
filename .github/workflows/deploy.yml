@@ -8,13 +8,6 @@ on:
       - "tf-service/**"
       - "src/easee-control/**"
       - ".github/workflows/deploy.yml"
-  pull_request:
-    branches:
-      - master
-    paths:
-      - "tf-service/**"
-      - "src/easee-control/**"
-      - ".github/workflows/deploy.yml"
   workflow_dispatch:
 
 env:
