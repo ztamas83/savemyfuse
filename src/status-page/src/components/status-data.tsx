@@ -5,6 +5,7 @@ import {
   PhaseDataGrid,
   type PhaseDataProps,
 } from "~/components/phase-data-grid";
+import { ModeToggle } from "./mode-toggle";
 
 interface LocationData {
   id: string;
@@ -76,6 +77,7 @@ export default function StatusData() {
       if ((phaseData as PhaseDataProps)?.phase_id) {
         propArray.push({
           ...(phaseData as PhaseDataProps),
+          last_update: data.updated_at as Timestamp,
         });
       }
     }
@@ -88,35 +90,45 @@ export default function StatusData() {
   if (error) return <div>Error: {error}</div>;
 
   return (
-    <div className="p-4">
-      <label
-        htmlFor="measurement-select"
-        className="block text-sm font-medium mb-2"
-      >
-        Select Measurement:
-      </label>
-      <select
-        id="measurement-select"
-        value={selectedLocation}
-        onChange={(e) => setSelectedLocation(e.target.value)}
-        className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-      >
-        <option value="">-- Select a measurement --</option>
-        {locations.map((measurement) => (
-          <option key={measurement.id} value={measurement.id}>
-            {measurement.id}
-          </option>
-        ))}
-      </select>
+    <div className="p-4 container mx-auto">
+      <div className="flex justify-between items-center mb-6">
+        <div className="w-full max-w-sm">
+          <label
+            htmlFor="measurement-select"
+            className="block text-sm font-medium mb-1"
+          >
+            Select Measurement:
+          </label>
+          <select
+            id="measurement-select"
+            value={selectedLocation}
+            onChange={(e) => setSelectedLocation(e.target.value)}
+            className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-gray-900 bg-white"
+          >
+            <option value="">-- Select a measurement --</option>
+            {locations.map((measurement) => (
+              <option key={measurement.id} value={measurement.id}>
+                {measurement.id}
+              </option>
+            ))}
+          </select>
+        </div>
+        <ModeToggle />
+      </div>
+
       {locationData && dataToShow.length > 0 && (
-        <div>
+        <div className="mt-4">
           <h1>
             Charger updated at:{" "}
             {(locationData.updated_at as Timestamp).toDate().toLocaleString()}
           </h1>
           <div className="mt-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {dataToShow.map((phaseData, index) => (
-              <PhaseDataGrid key={index} {...phaseData} />
+              <PhaseDataGrid
+                key={index}
+                {...phaseData}
+                last_update={locationData.updated_at as Timestamp}
+              />
             ))}
           </div>
         </div>

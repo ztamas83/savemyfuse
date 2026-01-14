@@ -37,7 +37,7 @@ auth.useDeviceLanguage();
 
 auth.onAuthStateChanged((user) => {
   if (user) {
-    console.log("authenticated", user);
+    // console.log("authenticated", user);
   } else {
     console.log("signed out");
   }
