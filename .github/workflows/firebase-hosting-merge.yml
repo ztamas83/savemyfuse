@@ -18,7 +18,10 @@ jobs:
         with:
           sparse-checkout: |
             src/status-page
-      - run: mv src/status-page/* ${GITHUB_WORKSPACE}/
+      - run: |
+          mkdir mytmp
+          mv src/status-page/* ./mytmp
+          mv mytmp/* ./
       - run: npm ci && npm run build
       - uses: FirebaseExtended/action-hosting-deploy@v0
         with:
