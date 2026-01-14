@@ -18,16 +18,30 @@ jobs:
         with:
           sparse-checkout: |
             src/status-page
-      - run: |
+      - name: Prepare source files
+        run: |
           mkdir mytmp
           mv src/status-page/* ./mytmp
           rm -rf ./src
           mv mytmp/* ./
-      - run: npm ci && npm run build
-      - uses: FirebaseExtended/action-hosting-deploy@v0
+      - name: Build app
+        run: npm ci && npm run build
+      - name: Authenticate to Google Cloud
+        id: auth
+        uses: google-github-actions/auth@v3
         with:
-          repoToken: ${{ secrets.GITHUB_TOKEN }}
-          firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_ZCLOUD_SE }}
-          channelId: live
-          projectId: zcloud-se
-          target: savemyfuse-admin
+          workload_identity_provider: ${{ secrets.WIF_PROVIDER }}
+          service_account: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_ZCLOUD_SE }}
+          token_format: "access_token"
+
+      - name: Deploy to Firebase Hosting
+        run: |
+          /usr/local/bin/npx firebase-tools@latest deploy --only hosting:savemyfuse-admin --project zcloud-se --json
+
+      # - uses: FirebaseExtended/action-hosting-deploy@v0
+      #   with:
+      #     repoToken: ${{ secrets.GITHUB_TOKEN }}
+      #     firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_ZCLOUD_SE }}
+      #     # channelId: live
+      #     projectId: zcloud-se
+      #     target: savemyfuse-admin
