@@ -35,6 +35,9 @@ export default function StatusData() {
         });
 
         setLocations(measurementsList);
+        if (measurementsList.length > 0) {
+          setSelectedLocation(measurementsList[0].id);
+        }
       } catch (err) {
         setError("Failed to fetch measurements");
         console.error("Error fetching measurements:", err);

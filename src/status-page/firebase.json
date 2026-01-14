@@ -6,12 +6,9 @@
     "indexes": "firestore.indexes.json"
   },
   "hosting": {
+    "site": "savemyfuse-admin",
     "public": "public",
-    "ignore": [
-      "firebase.json",
-      "**/.*",
-      "**/node_modules/**"
-    ],
+    "ignore": ["firebase.json", "**/.*", "**/node_modules/**"],
     "rewrites": [
       {
         "source": "**",

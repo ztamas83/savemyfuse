@@ -1,6 +1,6 @@
 import { GoogleAuthProvider, signInWithPopup, type User } from "firebase/auth";
 import { useContext, createContext, useEffect, useReducer } from "react";
-import { useNavigate } from "react-router-dom";
+import { Navigate, useNavigate } from "react-router-dom";
 import { auth as clientAuth } from "~/firebase.client";
 
 const initialState: AuthState = {
@@ -72,17 +72,6 @@ function AuthProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     const unsubscribe = clientAuth.onAuthStateChanged((user) => {
-      if (user) {
-        dispatch({
-          type: "INITIALISE",
-          payload: { isAuthenticated: true, user },
-        });
-      } else {
-        dispatch({
-          type: "INITIALISE",
-          payload: { isAuthenticated: false, user: undefined },
-        });
-      }
       dispatch({
         type: "INITIALISE",
         payload: {
@@ -94,15 +83,8 @@ function AuthProvider({ children }: { children: React.ReactNode }) {
     return unsubscribe;
   }, [dispatch]);
 
-  useEffect(() => {
-    if (state.isAuthenticated && state.user) {
-      console.log("Authenticated: ", state.user);
-      navigate("/");
-    } else {
-      console.log("Not authenticated");
-      navigate("/login");
-    }
-  }, [state, navigate]);
+  // Global redirect removed in favor of RequireAuth component
+
 
   return (
     <AuthContext.Provider value={{ loginWithGoogle, logout, ...state }}>
@@ -113,16 +95,20 @@ function AuthProvider({ children }: { children: React.ReactNode }) {
 
 export { AuthContext, AuthProvider };
 
-// Add this new component in the same file
 export function RequireAuth({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, isInitialized } = useContext(AuthContext);
 
-  // Removed useNavigate as per the requirement that navigation is not allowed within the guard.
-  // The parent routing will handle rendering the login page if the user is not authenticated.
+  if (!isInitialized) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-screen bg-gray-100">
+        <div className="text-xl">Loading...</div>
+      </div>
+    );
+  }
 
-  if (!isInitialized) return null;
+  if (!isAuthenticated) {
+    return <Navigate to="/login" replace />;
+  }
 
-  // If authenticated, render children. Otherwise, render null.
-  // The parent router will decide what to render when this returns null.
-  return isAuthenticated ? <>{children}</> : null;
+  return children;
 }

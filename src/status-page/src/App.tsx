@@ -1,4 +1,4 @@
-import { AuthProvider } from "~/services/auth-provider";
+import { AuthProvider, RequireAuth } from "~/services/auth-provider";
 import "./App.css";
 import StatusData from "./components/status-data";
 import { Route, Routes } from "react-router";
@@ -10,7 +10,14 @@ function App() {
         <AuthProvider>
           <Routes>
             <Route path="/login" element={<LoginPage />} />
-            <Route path="/" element={<StatusData />} />
+            <Route
+              path="/"
+              element={
+                <RequireAuth>
+                  <StatusData />
+                </RequireAuth>
+              }
+            />
           </Routes>
         </AuthProvider>
       </header>

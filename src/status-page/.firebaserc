@@ -1,5 +1,8 @@
 {
   "projects": {
-    "default": "savemyfuse"
-  }
+    "default": "zcloud-se",
+    "savemyfuse-admin": "zcloud-se"
+  },
+  "targets": {},
+  "etags": {}
 }
