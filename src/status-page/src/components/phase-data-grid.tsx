@@ -11,78 +11,6 @@ export interface PhaseDataProps {
   last_update?: Timestamp;
 }
 
-const CurrentGauge = ({
-  value,
-  max,
-  target,
-}: {
-  value: number;
-  max: number;
-  target: number;
-}) => {
-  const radius = 40;
-  const stroke = 8;
-  const normalizedValue = Math.min(Math.max(value, 0), max);
-
-  // Arc calculation (180 degree gauge)
-  const circumference = radius * Math.PI;
-  const strokeDashoffset =
-    circumference - (normalizedValue / max) * circumference;
-
-  // Calculate target line rotation: -90deg (0) to +90deg (max)
-  const targetRotation = (target / max) * 180 - 90;
-
-  return (
-    <div className="relative flex flex-col items-center justify-center pt-2">
-      <svg
-        width="140"
-        height="80"
-        viewBox="0 0 100 55"
-        className="overflow-visible"
-      >
-        {/* Background Arc */}
-        <path
-          d="M 10 50 A 40 40 0 0 1 90 50"
-          fill="none"
-          stroke="#e5e7eb" // gray-200
-          strokeWidth={stroke}
-          strokeLinecap="round"
-        />
-        {/* Value Arc */}
-        <path
-          d="M 10 50 A 40 40 0 0 1 90 50"
-          fill="none"
-          stroke={value > target ? "#ef4444" : "#3b82f6"} // red-500 if over target, else blue-500
-          strokeWidth={stroke}
-          strokeLinecap="round"
-          strokeDasharray={circumference}
-          strokeDashoffset={strokeDashoffset}
-          className="transition-all duration-500 ease-out"
-        />
-        {/* Target Marker Line */}
-        <line
-          x1="50"
-          y1="50"
-          x2="50"
-          y2="8"
-          stroke="#16a34a" // green-600
-          strokeWidth="3"
-          strokeDasharray="2 0"
-          transform={`rotate(${targetRotation} 50 50)`}
-          className="opacity-90"
-        />
-      </svg>
-      {/* Centered Text */}
-      <div className="absolute top-14 text-center">
-        <span className="text-2xl font-bold text-gray-800">
-          {value.toFixed(1)}A
-        </span>
-        <span className="text-xs text-gray-500 block">Target: {target}A</span>
-      </div>
-    </div>
-  );
-};
-
 const SamplesBarChart = ({ samples }: { samples: number[] }) => {
   const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
 
@@ -224,12 +152,6 @@ const SamplesBarChart = ({ samples }: { samples: number[] }) => {
 };
 
 export function PhaseDataGrid(phaseDataProps: PhaseDataProps) {
-  // Assuming samples are ordered chronologically [old, ..., new]
-  const latestSample =
-    phaseDataProps.samples.length > 0
-      ? phaseDataProps.samples[phaseDataProps.samples.length - 1]
-      : 0;
-
   return (
     <>
       <div className="flex flex-col gap-2 p-4 bg-white rounded-lg shadow-sm border border-gray-100 hover:shadow-md transition-shadow">
