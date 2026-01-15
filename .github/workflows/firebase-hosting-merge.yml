@@ -43,7 +43,7 @@ jobs:
 
       - name: Build app
         shell: bash
-        run: bun install -p && bun run build
+        run: bun install && bun run build
         env:
           VITE_FIREBASE_API_KEY: ${{ secrets.FIREBASE_API_KEY}}
           VITE_FIREBASE_PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
