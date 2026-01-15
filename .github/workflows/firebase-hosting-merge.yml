@@ -16,25 +16,20 @@ jobs:
       pull-requests: write
     runs-on: ubuntu-latest
     steps:
+      - name: Authenticate to Google Cloud
+        id: auth
+        uses: google-github-actions/auth@v3
+        with:
+          workload_identity_provider: ${{ secrets.WIF_PROVIDER }}
+          service_account: ${{ secrets.WIF_SERVICE_ACCOUNT }}
+          token_format: "access_token"
+
       - uses: actions/checkout@v4
         with:
           sparse-checkout: |
             src/status-page
-      - name: Calculate directory hash
-        id: dir-hash
-        run: echo "hash=${{ hashFiles('src/status-page/**') }}" >> $GITHUB_OUTPUT
-
-      
-
-      - name: Restore cached build
-        id: cache-build
-        uses: actions/cache@v3
-        with:
-          path: ./public
-          key: ${{ runner.os }}-build-${{ steps.dir-hash.outputs.hash }}
 
       - name: Prepare source files
-      if: steps.cache-build.outputs.cache-hit != 'true'
         run: |
           mkdir mytmp
           mv src/status-page/* ./mytmp
@@ -42,7 +37,6 @@ jobs:
           mv mytmp/* ./
 
       - name: Build app
-        if: steps.cache-build.outputs.cache-hit != 'true'
         shell: bash
         run: npm ci && npm run build
         env:
@@ -52,17 +46,6 @@ jobs:
           VITE_FIREBASE_STORAGE_BUCKET: ${{ vars.GCP_PROJECT_ID }}.firebasestorage.app
           VITE_FIREBASE_MESSAGING_SENDER_ID: ${{ secrets.FIREBASE_MESSAGING_SENDER_ID }}
           VITE_FIREBASE_APP_ID: ${{ secrets.FIREBASE_APP_ID }}
-
-      - name: Authenticate to Google Cloud
-        id: auth
-        uses: google-github-actions/auth@v3
-        with:
-          workload_identity_provider: ${{ secrets.WIF_PROVIDER }}
-          service_account: ${{ secrets.WIF_SERVICE_ACCOUNT }}
-          token_format: "access_token"
-
-      - run: |
-          ls -al ./public
 
       - name: Deploy to Firebase Hosting
         run: |
