@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Timestamp } from "firebase/firestore";
+import { GaugeComponent } from "react-gauge-component";
 
 export interface PhaseDataProps {
   phase_id: string;
@@ -241,16 +242,45 @@ export function PhaseDataGrid(phaseDataProps: PhaseDataProps) {
           </span>
         </div>
 
-        <CurrentGauge
-          value={latestSample}
-          max={16}
-          target={phaseDataProps.target_current}
+        <GaugeComponent
+          value={phaseDataProps.target_current}
+          maxValue={16}
+          pointer={{ type: "arrow", elastic: true }}
+          minValue={0}
+          type="radial"
+          arc={{
+            gradient: true,
+            width: 0.15,
+            padding: 0,
+            subArcs: [
+              {
+                limit: 4,
+                color: "#ff4000",
+                showTick: true,
+              },
+              {
+                limit: 8,
+                color: "#F5CD19",
+                showTick: true,
+              },
+              {
+                limit: 12,
+                color: "#bfff00",
+                showTick: true,
+              },
+              {
+                limit: 16,
+                color: "#009900",
+                showTick: false,
+              },
+              { color: "#ff4000" /* remainder */ },
+            ],
+          }}
         />
 
         {phaseDataProps.last_update && (
           <div className="text-center text-xs text-gray-400 mb-2 mt-4">
-            Last update:{" "}
-            {phaseDataProps.last_update.toDate().toLocaleTimeString()}
+            Last update: {phaseDataProps.last_update.toDate().toLocaleString()}
           </div>
         )}
 
