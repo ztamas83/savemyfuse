@@ -36,9 +36,14 @@ jobs:
           rm -rf ./src
           mv mytmp/* ./
 
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: "1.3.4"
+
       - name: Build app
         shell: bash
-        run: npm ci && npm run build
+        run: bun install -p && bun run build
         env:
           VITE_FIREBASE_API_KEY: ${{ secrets.FIREBASE_API_KEY}}
           VITE_FIREBASE_PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
